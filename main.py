@@ -65,7 +65,10 @@ app = workflow.compile(checkpointer=memory, interrupt_before=["human_approval"])
 # --- 실행 루프 ---
 if __name__ == "__main__":
     project_id = "secure_logger_v2"
-    config = {"configurable": {"thread_id": project_id}}
+    config = {
+        "configurable": {"thread_id": project_id},
+        "recursion_limit": 100
+    }
     initial_input = {
         "project_name": project_id, 
         "messages": [HumanMessage(content="보안이 강화된 간단한 로깅 웹서버를 만들어줘. 이번엔 문서화까지 부탁해.")]
