@@ -45,7 +45,13 @@ def developer_agent(state: AgentState):
 
     error_feedback = ""
     if state.get("test_results", "").startswith("FAIL"):
-        error_feedback = f"\n[이전 코드 검사 오류 피드백]\n{state['messages'][-1].content}"
+        error_feedback = f"\n[QA 에러 피드백]\n{state['messages'][-1].content}"
+        
+    # [추가됨] Supervisor의 특별 지시사항 주입
+    supervisor_directive = state.get("supervisor_directive", "")
+    if supervisor_directive:
+        error_feedback += f"\n\n🚨 [SUPERVISOR 긴급 지시사항 (가장 최우선으로 따를 것)]\n{supervisor_directive}"
+
 
     # 프롬프트에 순환 참조(Circular Import) 해결 지침 강력 추가
     system_prompt = SystemMessage(content=f"""당신은 수석 소프트웨어 엔지니어입니다. 
@@ -54,8 +60,10 @@ def developer_agent(state: AgentState):
 
 [절대 규칙 - 반드시 지키세요] 
 1. 'docs/architecture.md' 등 문서 파일은 절대 작성하거나 덮어쓰지 마세요.
-2. [버그 수정 및 순환 참조(Circular Import) 해결] QA 피드백에 에러가 있다면, '현재 작성된 전체 파이썬 코드'를 분석하여 에러의 원인이 되는 파일들을 찾아내세요. 특히 순환 참조 에러의 경우, 임포트 위치를 함수 내부로 옮기거나 의존성 방향을 한 방향으로 재설계하여 도구를 통해 해당 파일들을 덮어써야 합니다.
-3. [도구 강제 호출] 어떤 오류 피드백을 받든, 말로만 설명하지 말고 반드시 원인이 되는 파일을 수정하여 도구(write_code_to_workspace)를 호출해야 합니다.""")
+2. [버그 수정 및 순환 참조 해결] 에러의 원인이 되는 파일들을 찾아내어, 임포트 위치를 옮기거나 의존성을 재설계하여 도구를 통해 덮어쓰세요.
+3. 🚨 [환경 파일 누락 에러 우회 (핵심!!)] QA 피드백에서 'ssl/server.crt', '.env 파일', '데이터베이스 파일' 등이 없어서 실행이 안 된다고 하면, 사용자에게 파일을 만들라고 텍스트로 설명하지 마세요! 당신은 터미널 명령어를 칠 수 없습니다. 대신 메인 코드(예: main.py, config.py)를 수정하여 로컬 샌드박스 테스트 중에는 SSL(HTTPS) 적용을 임시로 해제(Bypass)하거나, 파이썬 코드 내에서 더미 파일/DB를 자동 생성하도록 로직을 변경한 뒤 도구로 저장하세요.
+4. [도구 강제 호출] 어떤 오류 피드백을 받든, 말로만 설명하거나 텍스트만 반환하는 것은 '절대 금지'입니다. 무조건 하나 이상의 파이썬 코드를 수정하여 'write_code_to_workspace' 도구를 호출해야만 당신의 임무가 끝납니다.""")
+
     
     # Dev 에이전트에게 전체 파일 리스트, 패키지 버전, 그리고 '전체 코드 내용'을 몽땅 주입합니다.
     user_prompt = HumanMessage(content=f"요구사항:\n{requirements}\n\n아키텍처 설계도:\n{architecture}\n\n현재 디스크에 저장된 파일 목록:\n{existing_files_str}\n\n현재 requirements.txt 내용:\n{req_content}\n\n현재 작성된 전체 파이썬 코드:\n{existing_code_content}\n{error_feedback}")

@@ -12,4 +12,5 @@ class AgentState(TypedDict):
     test_results: str
     qa_attempts: int
     supervisor_decision: str  # [추가됨] Supervisor의 판단 (developer, architect, human)
+    supervisor_directive: str
     human_decision: str

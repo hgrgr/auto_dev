@@ -39,6 +39,9 @@ def route_after_human(state: AgentState):
         return "developer"
     elif decision == "deploy":
         return "deploy"
+    elif decision == "new_feature":
+        print("   -> 🚀 [System]: 새로운 요구사항이 접수되었습니다! PM Agent에게 스프린트 계획을 지시합니다.")
+        return "pm" # [추가됨] 새로운 기능 요청 시 PM으로 이동
     else:
         print("   -> 🛑 [System]: 프로세스를 완전히 종료합니다.")
         return END
@@ -73,6 +76,7 @@ workflow.add_conditional_edges("supervisor", route_after_supervisor, {
 workflow.add_edge("docs", "human_approval")
 
 workflow.add_conditional_edges("human_approval", route_after_human, {
+    "pm": "pm",
     "developer": "developer",
     "deploy": "deploy",
     END: END
@@ -107,6 +111,7 @@ if __name__ == "__main__":
             
     except Exception as e:
         print(f"\n🚨 [치명적 에러 발생]: {e}")
+    
 
     while True:
         state = app.get_state(config)
@@ -116,24 +121,47 @@ if __name__ == "__main__":
             break 
             
         if state.next[0] == "human_approval":
-            print("\n[인간 개입 필요] 시스템이 배포 승인을 대기 중이거나 최대 재시도 횟수에 도달했습니다.")
-            print("어떻게 처리하시겠습니까?")
-            print("  [y] 승인 및 배포 진행")
-            print("  [r] 추가 QA 및 수정 진행 (카운터 0으로 초기화)")
+            print("\n=======================================================")
+            print("✨ [개발 및 QA 완료] 배포 승인 대기 중입니다.")
+            print("=======================================================")
+            
+            # [해결 1] PM이 작성한 현재 시스템 명세서를 화면에 출력해 줍니다.
+            # state.values 를 통해 상태 데이터에 접근합니다.
+            current_reqs = state.values.get("requirements", "명세서 정보가 없습니다.")
+            print("\n📋 [현재 개발된 시스템 기능 요약]")
+            print("-" * 60)
+            print(current_reqs)
+            print("-" * 60)
+            
+            print("\n어떻게 처리하시겠습니까?")
+            print("  [y] 승인 및 프로덕션 배포")
+            print("  [r] 현재 요구사항 내에서 QA 및 코드 강제 재수정")
             print("  [n] 취소 및 종료")
-            user_input = input("선택 (y/r/n): ").strip().lower()
+            print("  [기타 텍스트] 추가하고 싶은 새로운 기능이나 요구사항을 자유롭게 입력하세요.")
+            
+            user_input = input("\n선택 또는 새 요구사항 입력: ").strip()
 
-            if user_input == 'y':
+            if user_input.lower() == 'y':
                 print("승인 완료. 배포를 진행합니다.")
                 app.update_state(config, {"human_decision": "deploy"})
-            elif user_input == 'r':
-                print("수정 루프를 재개합니다. Dev Agent에게 다시 제어권을 넘깁니다.")
+            elif user_input.lower() == 'r':
+                print("수정 루프를 재개합니다.")
                 app.update_state(config, {"human_decision": "retry", "qa_attempts": 0})
-            else:
+            elif user_input.lower() == 'n':
                 print("배포가 취소되었습니다.")
                 app.update_state(config, {"human_decision": "cancel"})
+            else:
+                print("\n📝 새로운 요구사항이 접수되었습니다. 다음 스프린트(버전업)를 시작합니다.")
                 
-            # 변경됨: 인간 개입 이후의 흐름도 출력
+                # [해결 2] 기존 메시지를 불러올 필요 없이, 새 메시지만 보내면 LangGraph가 알아서 병합합니다.
+                new_message = HumanMessage(content=f"[추가 요구사항 업데이트]: {user_input}")
+                
+                app.update_state(config, {
+                    "human_decision": "new_feature", 
+                    "qa_attempts": 0,
+                    "messages": [new_message] # operator.add 덕분에 자동으로 기존 대화에 추가됨
+                })
+                
             for event in app.stream(None, config=config, stream_mode="updates"):
                 node_name = list(event.keys())[0]
                 print(f"   ⚙️ [System Debug]: '{node_name}' 노드 작업 완료")

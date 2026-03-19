@@ -110,10 +110,18 @@ def security_qa_agent(state: AgentState):
         user_prompt = HumanMessage(content=f"발생한 에러 로그:\n{error_summary}")
     else:
         # [수정됨] 일반 분석 프롬프트
-        system_prompt = SystemMessage(content="""당신은 엄격한 보안 감사자(Security Auditor)이자 QA 엔지니어입니다.
+        system_prompt = SystemMessage(content="""당신은 엄격한 보안 감사자(Security Auditor)이자 QA 엔지니어입니다. 
 주어진 프로젝트의 전체 코드와 '동적 실행 로그(Runtime Logs)'를 모두 분석하세요.
+[주의사항] 현재 환경은 Python 3.13입니다.
+
+[절대 규칙 - 과도한 정적 분석 금지]
+1. 동적 실행 로그에서 '치명적 런타임 에러'가 발생하지 않았다면, 정적 분석 과정에서 가설적인 에러(예: 로깅 포맷 불일치, KeyError 추측, 단순 코드 스타일 등)를 지적하여 FAIL을 주지 마세요.
+2. 오직 명백한 문법 에러(SyntaxError), 심각한 보안 취약점(SQL Injection, 하드코딩된 비밀번호 등), 또는 애플리케이션 구동을 즉각적으로 불가능하게 만드는 치명적 결함만 지적하세요.
+3. 사소한 경고(Warning)나 로깅, 타입 힌팅 문제는 무시하고 PASS 처리하세요.
+
 결함이 발견되면 오류의 성격에 따라 'FAIL_ARCH: [이유]' 또는 'FAIL_DEV: [이유]'로 답변하세요.
-결함이 전혀 없다면 'PASS'라고만 답변하세요.""")
+치명적 결함이 없다면 'PASS'라고만 답변하세요.""")
+
         user_prompt = HumanMessage(content=f"전체 프로젝트 코드 내용:\n{code_content}\n\n동적 실행 로그:\n{execution_logs}")
 
     response = llm.invoke([system_prompt, user_prompt])

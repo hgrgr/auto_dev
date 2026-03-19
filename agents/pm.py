@@ -1,3 +1,4 @@
+# agents/pm.py 전체 교체
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from state import AgentState
@@ -7,25 +8,32 @@ llm = ChatOpenAI(model=DEFAULT_MODEL, temperature=TEMPERATURE)
 
 def pm_agent(state: AgentState):
     project_name = state.get("project_name", "unknown_project")
-    print(f"\n🤖 [PM Agent]: '{project_name}'의 사용자 요구사항을 분석하여 명세서를 작성합니다...")
+    existing_requirements = state.get("requirements", "")
     
-    if state.get("messages"):
+    # 처음 실행인지, 추가 스프린트인지 확인
+    is_update = bool(existing_requirements)
+    
+    if is_update:
+        print(f"\n🤖 [PM Agent]: '{project_name}'의 기존 시스템에 사용자 피드백을 반영하여 명세서를 업데이트합니다...")
+        context_prompt = f"[기존 명세서]\n{existing_requirements}\n\n[사용자의 새로운 추가/수정 요구사항]\n{state['messages'][-1].content}"
+    else:
+        print(f"\n🤖 [PM Agent]: '{project_name}'의 최초 사용자 요구사항을 분석하여 명세서를 작성합니다...")
         first_msg = state["messages"][0]
         user_message = first_msg.content if hasattr(first_msg, 'content') else first_msg[1]
-    else:
-        user_message = "요구사항 없음"
-        
-    # agents/pm.py 내부의 system_prompt 수정
-    system_prompt = SystemMessage(content="""당신은 뛰어난 역량을 가진 IT 프로덕트 매니저(PM)이자 시스템 아키텍트입니다.
-사용자의 모호한 요구사항을 분석하여 개발자가 즉시 코딩을 시작할 수 있는 수준의 '기술 명세서(PRD)'를 작성해야 합니다.
+        context_prompt = f"최초 사용자 요구사항: {user_message}"
+
+    system_prompt = SystemMessage(content=f"""당신은 뛰어난 역량을 가진 IT 프로덕트 매니저(PM)입니다.
+사용자의 요구사항을 분석하여 개발자가 즉시 코딩을 시작할 수 있는 수준의 '기술 명세서(PRD)'를 작성해야 합니다.
 
 [절대 규칙]
-이 팩토리는 파이썬(Python) 전용 공장입니다. 추천 기술 스택은 **반드시 Python 3.13 기반(FastAPI, Flask 등)**으로만 한정해야 하며, 절대 Node.js, Java, Go 등을 언급하지 마세요.
+1. 이 팩토리는 파이썬(Python 3.13) 전용입니다. (Node.js 등 타 언어 금지)
+2. 만약 이것이 '추가/수정 요구사항'이라면, 절대 기존 명세서를 완전히 뒤엎지 마세요. 기존 기능을 유지한 상태에서 새로운 기능이 어떻게 통합될지 '추가된 기능' 항목을 명확히 분리하여 증분(Incremental) 업데이트를 수행하세요.
 
-프로젝트 개요, 기능 목록, API 엔드포인트 스펙, 보안 요구사항 등을 마크다운 형식으로 정리하세요.""")
-
-    user_prompt = HumanMessage(content=f"최초 사용자 요구사항: {user_message}")
+프로젝트 개요, 기존 기능 목록, 신규 추가 기능 목록, 변경되는 API 스펙 등을 마크다운 형식으로 작성하세요.""")
+    
+    user_prompt = HumanMessage(content=context_prompt)
     
     response = llm.invoke([system_prompt, user_prompt])
-    print("   -> 📝 명세서 작성 완료.")
+    print("   -> 📝 명세서 작성(또는 업데이트) 완료.")
+    
     return {"requirements": response.content}
