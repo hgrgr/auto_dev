@@ -147,31 +147,36 @@ if __name__ == "__main__":
             print(existing_reqs)
             print("=" * 60)
             
-            # [추가된 로직] LLM을 즉석 호출하여 명세서를 일반인 관점으로 요약
-            print("\n🔍 [사용자 관점 기능 요약 분석 중...]")
+            # [수정된 로직] LLM을 호출하여 명세서 요약 및 다음 스프린트 기능 추천
+            print("\n🔍 [사용자 관점 기능 요약 및 고도화 방향 분석 중...]")
             try:
-                # main.py 상단에서 ChatOpenAI, DEFAULT_MODEL, TEMPERATURE를 import 해야 합니다.
                 from langchain_openai import ChatOpenAI
                 from config import DEFAULT_MODEL, TEMPERATURE
                 
                 summary_llm = ChatOpenAI(model=DEFAULT_MODEL, temperature=TEMPERATURE)
-                summary_prompt = f"""다음 기술 명세서를 분석하여, 코드를 모르는 '일반 사용자' 관점에서 현재 이 서비스가 어떤 기능들을 제공하는지 3~5줄의 글머리 기호로 요약해 주세요. 
-(절대 함수명, 파라미터, DB 스키마 같은 기술 용어를 쓰지 말고 "사용자는 ~을 할 수 있습니다" 형태의 쉬운 언어로 작성하세요.)
+                summary_prompt = f"""당신은 통찰력 있는 프로덕트 매니저(PM)입니다. 
+다음 기술 명세서를 분석하여 다음 두 가지 섹션을 작성해 주세요. 
+(절대 함수명, DB 스키마 같은 기술 용어를 쓰지 말고, '일반 사용자'나 '비즈니스 관리자'가 이해하기 쉬운 언어로 작성하세요.)
+
+1. [현재 구현된 핵심 기능]: 현재 이 서비스가 제공하는 주요 기능을 3~5줄의 글머리 기호로 요약하세요.
+2. [🚀 넥스트 스텝 추천 기능]: 이 서비스의 가치를 한 단계 높이거나 사용자 경험을 극대화하기 위해, 다음 개발 단계에서 추가하면 좋을 만한 '핵심 추천 기능' 3가지를 제안하고 짧은 이유를 덧붙여주세요.
 
 [기술 명세서 내용]
 {existing_reqs}"""
                 
                 summary_result = summary_llm.invoke(summary_prompt).content
-                print("\n💡 [현재 구현된 핵심 기능 요약 (User Perspective)]")
+                print("\n" + "=" * 60)
                 print(summary_result)
                 print("=" * 60)
             except Exception as e:
-                print(f"요약 생성 중 오류가 발생했습니다: {e}")
+                print(f"요약 및 추천 생성 중 오류가 발생했습니다: {e}")
                 
         else:
             print("\n⚠️ 기존 프로젝트 폴더는 있으나, 명세서(specification.md)를 찾을 수 없습니다.")
             
-        user_prompt = input("\n📝 위 요약을 참고하여 추가하거나 수정할 요구사항을 입력하세요: ").strip()
+        user_prompt = input("\n📝 위 추천을 참고하여 추가하거나 수정할 요구사항을 자유롭게 입력하세요: ").strip()
+
+
     else:
         user_prompt = input(f"\n✨ 새 프로젝트 '{project_id}'의 요구사항을 입력하세요: ").str
     
