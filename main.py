@@ -178,7 +178,7 @@ if __name__ == "__main__":
 
 
     else:
-        user_prompt = input(f"\n✨ 새 프로젝트 '{project_id}'의 요구사항을 입력하세요: ").str
+        user_prompt = input(f"\n✨ 새 프로젝트 '{project_id}'의 요구사항을 입력하세요: ").strip()
     
     initial_input = {
         "project_name": project_id,
