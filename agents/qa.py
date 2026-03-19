@@ -96,50 +96,32 @@ def security_qa_agent(state: AgentState):
             except Exception as e:
                 critical_runtime_errors.append(f"[{filename} 시스템 에러]\n{str(e)}")
 
-    # [수정 1] 치명적 런타임 에러 처리 프롬프트 확장
+
+# ... (상단의 코드 스캔 및 실행 로직은 그대로 유지) ...
+
+# [수정됨] 런타임 에러 발생 시 프롬프트
     if critical_runtime_errors:
         error_summary = "\n".join(critical_runtime_errors)
         system_prompt = SystemMessage(content="""당신은 엄격한 보안 감사자(Security Auditor)입니다.
 현재 코드 실행 중 '치명적인 런타임 에러'가 발생했습니다.
 오류의 성격을 분석하여 다음 두 가지 중 하나로 반드시 시작하여 해결책을 제시하세요:
-
-1. 'FAIL_ARCH: [이유]' - (매크로 루프) 파이썬 버전(3.13)과 외부 라이브러리(SQLAlchemy 등) 간의 근본적 호환성 충돌, 프레임워크 교체 필요, 또는 데이터베이스/디렉토리 구조가 잘못된 경우.
-2. 'FAIL_DEV: [이유]' - (마이크로 루프) 단순 오타, 모듈 임포트 경로 누락, 로직 에러 등 개발자가 코드만 수정하면 해결되는 경우.
-
-절대 PASS를 반환해서는 안 됩니다.""")
+1. 'FAIL_ARCH: [이유]' - 파이썬 3.13 환경과 호환되지 않는 라이브러리 충돌, 프레임워크 전면 교체, 스키마/파일 구조 변경이 필요한 경우.
+2. 'FAIL_DEV: [이유]' - 단순 오타, 임포트 누락, 로직 에러 등 개발자가 코드만 수정하면 해결되는 경우.""")
         user_prompt = HumanMessage(content=f"발생한 에러 로그:\n{error_summary}")
     else:
-        # [수정 2] 정상 실행 시 일반 분석 프롬프트도 기준을 명확히 확장
-        system_prompt = SystemMessage(content="""당신은 엄격한 보안 감사자(Security Auditor)이자 QA 엔지니어입니다. 
+        # [수정됨] 일반 분석 프롬프트
+        system_prompt = SystemMessage(content="""당신은 엄격한 보안 감사자(Security Auditor)이자 QA 엔지니어입니다.
 주어진 프로젝트의 전체 코드와 '동적 실행 로그(Runtime Logs)'를 모두 분석하세요.
-[주의사항] 현재 환경은 Python 3.13입니다.
-
-결함이 발견되면 오류의 성격에 따라 다음 두 가지 중 하나로 시작하세요:
-1. 'FAIL_ARCH: [이유]' - 파이썬 3.13 환경과 호환되지 않는 라이브러리 충돌, 프레임워크 전면 교체, 스키마/파일 구조 변경이 필요한 경우.
-2. 'FAIL_DEV: [이유]' - 단순 버그, 오타, 누락 등 코딩 실수인 경우.
-
-결함이 전혀 없고 배포 준비가 완료되었다면 'PASS'라고만 답변하세요.""")
+결함이 발견되면 오류의 성격에 따라 'FAIL_ARCH: [이유]' 또는 'FAIL_DEV: [이유]'로 답변하세요.
+결함이 전혀 없다면 'PASS'라고만 답변하세요.""")
         user_prompt = HumanMessage(content=f"전체 프로젝트 코드 내용:\n{code_content}\n\n동적 실행 로그:\n{execution_logs}")
-    
-
 
     response = llm.invoke([system_prompt, user_prompt])
     review_result = response.content.strip()
-    
+
     if review_result.startswith("FAIL_ARCH") or review_result.startswith("FAIL_DEV"):
         fail_summary = review_result.split('\n')[0]
         print(f"   -> 🚨 [QA 발견 문제]: {fail_summary}")
-        print(f"   -> 🔄 (현재 재시도: {current_attempts}회)")
-        
-        if current_attempts >= MAX_QA_ATTEMPTS:
-            error_dir = os.path.join(project_dir, "unresolved_errors")
-            os.makedirs(error_dir, exist_ok=True)
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            error_file = os.path.join(error_dir, f"error_report_{timestamp}.md")
-            with open(error_file, "w", encoding="utf-8") as f:
-                f.write(f"# 🚨 미해결 에러 리포트\n\n## 📌 요약\n{fail_summary}\n\n## 🤖 QA 상세 분석\n{review_result}\n\n## 💻 실행 로그\n```text\n{execution_logs}\n```\n")
-            print(f"   -> 📁 [System]: 미해결 에러 리포트가 '{error_file}'에 저장되었습니다.")
-
         return {"test_results": fail_summary, "messages": [HumanMessage(content=review_result)], "qa_attempts": current_attempts}
     else:
         print("   -> ✅ [QA 통과]: 실행 에러 및 보안 결함이 없습니다.")

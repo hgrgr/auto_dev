@@ -4,28 +4,33 @@ from langchain_core.messages import HumanMessage
 
 from config import MAX_QA_ATTEMPTS, RECURSION_LIMIT
 from state import AgentState
-from agents import pm_agent, architect_agent, developer_agent, security_qa_agent, documentation_agent
+from agents import pm_agent, architect_agent, developer_agent, security_qa_agent, documentation_agent, supervisor_agent # supervisor 추가
 
 # --- 라우팅(Edge) 함수 ---
-# main.py 내부의 라우팅 부분 수정
 def route_after_qa(state: AgentState):
     test_results = state.get("test_results", "")
+    attempts = state.get("qa_attempts", 0)
     
     if test_results.startswith("FAIL"):
-        if state.get("qa_attempts", 0) >= MAX_QA_ATTEMPTS:
-            print(f"   -> 🛑 [System]: 최대 QA 재시도 횟수({MAX_QA_ATTEMPTS}회)를 초과했습니다.")
-            return "human_approval"
+        # [핵심] 3회 이상 동일한 에러 루프에 빠지면 Supervisor 호출
+        if attempts >= 3:
+            print(f"   -> 🚨 [System]: 해결되지 않는 에러 {attempts}회 누적 감지! Supervisor에게 에스컬레이션(Escalation)합니다.")
+            return "supervisor"
             
-        # [핵심 로직] 에러 종류에 따라 분기
+        # 3회 미만일 경우 실무자들이 알아서 처리
         if test_results.startswith("FAIL_ARCH"):
-            print("   -> 🏗️ [System]: 치명적 구조 결함 발견! Architect Agent에게 재설계를 지시합니다.")
+            print("   -> 🏗️ [System]: 구조 결함 감지. Architect Agent에게 전달합니다.")
             return "architect"
         else:
-            print("   -> ♻️ [System]: 단순 버그 발견! Dev Agent에게 코드 수정을 지시합니다.")
+            print("   -> ♻️ [System]: 일반 버그 감지. Dev Agent에게 전달합니다.")
             return "developer"
             
     print("   -> ✅ [System]: QA 통과. 공식 문서 작성 단계로 이동합니다.")
     return "docs"
+
+def route_after_supervisor(state: AgentState):
+    decision = state.get("supervisor_decision", "human_approval")
+    return decision
 
 def route_after_human(state: AgentState):
     decision = state.get("human_decision", "cancel")
@@ -45,6 +50,7 @@ workflow.add_node("pm", pm_agent)
 workflow.add_node("architect", architect_agent)
 workflow.add_node("developer", developer_agent)
 workflow.add_node("qa", security_qa_agent)
+workflow.add_node("supervisor", supervisor_agent) # [노드 추가]
 workflow.add_node("docs", documentation_agent)
 workflow.add_node("human_approval", lambda state: {})
 workflow.add_node("deploy", lambda state: print("🚀 [DevOps]: 프로덕션에 배포합니다!"))
@@ -56,10 +62,16 @@ workflow.add_edge("developer", "qa")
 workflow.add_conditional_edges("qa", route_after_qa, {
     "architect": "architect",
     "developer": "developer",
-    "docs": "docs",
+    "supervisor": "supervisor",
+    "docs": "docs"
+})
+workflow.add_conditional_edges("supervisor", route_after_supervisor, {
+    "architect": "architect",
+    "developer": "developer",
     "human_approval": "human_approval"
 })
 workflow.add_edge("docs", "human_approval")
+
 workflow.add_conditional_edges("human_approval", route_after_human, {
     "developer": "developer",
     "deploy": "deploy",
