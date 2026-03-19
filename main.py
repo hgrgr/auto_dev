@@ -72,12 +72,22 @@ if __name__ == "__main__":
     }
 
     print(f"=== 팩토리 가동 시작 (프로젝트: {project_id}) ===")
-    for event in app.stream(initial_input, config=config):
-        pass
+    
+    try:
+        # 변경됨: stream_mode를 "updates"로 명시하고, 내부 이벤트를 강제로 프린트하여 흐름을 추적합니다.
+        for event in app.stream(initial_input, config=config, stream_mode="updates"):
+            # 어떤 에이전트 노드가 실행되었는지 디버깅 출력
+            node_name = list(event.keys())[0]
+            print(f"   ⚙️ [System Debug]: '{node_name}' 노드 작업 완료")
+            
+    except Exception as e:
+        print(f"\n🚨 [치명적 에러 발생]: {e}")
 
     while True:
         state = app.get_state(config)
+        
         if not state.next:
+            print("\n🏁 [System]: 프로세스가 완료되었거나 더 이상 진행할 노드가 없습니다.")
             break 
             
         if state.next[0] == "human_approval":
@@ -98,5 +108,7 @@ if __name__ == "__main__":
                 print("배포가 취소되었습니다.")
                 app.update_state(config, {"human_decision": "cancel"})
                 
-            for event in app.stream(None, config=config):
-                pass
+            # 변경됨: 인간 개입 이후의 흐름도 출력
+            for event in app.stream(None, config=config, stream_mode="updates"):
+                node_name = list(event.keys())[0]
+                print(f"   ⚙️ [System Debug]: '{node_name}' 노드 작업 완료")
