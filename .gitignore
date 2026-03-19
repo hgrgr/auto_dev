@@ -22,3 +22,6 @@ workspace/*
 .idea/
 .DS_Store
 *.swp
+
+#
+temp/

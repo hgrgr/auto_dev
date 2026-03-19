@@ -12,6 +12,8 @@ def developer_agent(state: AgentState):
     print(f"\n🤖 [Dev Agent]: '{project_name}' 프로젝트의 코드를 작성 중입니다...")
     
     requirements = state.get("requirements", "요구사항이 없습니다.")
+    architecture = state.get("architecture", "아키텍처 설계가 없습니다.") 
+
     error_feedback = ""
     if state.get("test_results", "").startswith("FAIL"):
         error_feedback = f"\n이전 코드 검사에서 다음 오류/취약점이 발견되었습니다. 이를 수정하여 다시 작성하세요:\n{state['messages'][-1].content}"
@@ -25,8 +27,8 @@ def developer_agent(state: AgentState):
 2. 현재 시스템은 **Python 3.13** 환경입니다. requirements.txt 작성 시 반드시 최신 안정화 버전(예: Flask>=3.0, FastAPI 최신 등)을 사용하세요.
 3. 실행 중 'ImportError'나 버전 충돌 에러가 발생하면, requirements.txt와 파이썬 코드를 모두 최신 버전에 맞게 수정하여 도구로 다시 덮어쓰세요.
 4. 추가 수정 요청이 들어온 경우, 'read_file_from_workspace' 도구를 사용해 반드시 'docs/specification.md'를 먼저 읽고 기존 시스템 규칙을 위반하지 않도록 코드를 작성하세요.""")
-    user_prompt = HumanMessage(content=f"요구사항: {requirements} {error_feedback}")
     
+    user_prompt = HumanMessage(content=f"요구사항:\n{requirements}\n\n아키텍처 설계도:\n{architecture}\n\n{error_feedback}") 
     response = llm_with_tools.invoke([system_prompt, user_prompt])
     
     code_files_updated = {}

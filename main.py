@@ -4,7 +4,7 @@ from langchain_core.messages import HumanMessage
 
 from config import MAX_QA_ATTEMPTS, RECURSION_LIMIT
 from state import AgentState
-from agents import pm_agent, developer_agent, security_qa_agent, documentation_agent
+from agents import pm_agent, architect_agent, developer_agent, security_qa_agent, documentation_agent
 
 # --- 라우팅(Edge) 함수 ---
 def route_after_qa(state: AgentState):
@@ -32,6 +32,7 @@ def route_after_human(state: AgentState):
 workflow = StateGraph(AgentState)
 
 workflow.add_node("pm", pm_agent)
+workflow.add_node("architect", architect_agent)
 workflow.add_node("developer", developer_agent)
 workflow.add_node("qa", security_qa_agent)
 workflow.add_node("docs", documentation_agent)
@@ -39,7 +40,8 @@ workflow.add_node("human_approval", lambda state: {})
 workflow.add_node("deploy", lambda state: print("🚀 [DevOps]: 프로덕션에 배포합니다!"))
 
 workflow.set_entry_point("pm")
-workflow.add_edge("pm", "developer")
+workflow.add_edge("pm", "architect")
+workflow.add_edge("architect", "developer")
 workflow.add_edge("developer", "qa")
 workflow.add_conditional_edges("qa", route_after_qa, {
     "developer": "developer",
@@ -59,7 +61,7 @@ app = workflow.compile(checkpointer=memory, interrupt_before=["human_approval"])
 
 # --- 실행 루프 ---
 if __name__ == "__main__":
-    project_id = "secure_logger_v3"
+    project_id = "secure_logger_v4"
     
     config = {
         "configurable": {"thread_id": project_id},
