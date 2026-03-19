@@ -1,0 +1,24 @@
+# --- Security & Keys ---
+.env
+
+# --- Python Environments ---
+venv/
+env/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- AI Factory Workspace ---
+# workspace 폴더 자체는 추적하되, AI가 만든 하위 프로젝트의 가상환경은 무시합니다.
+workspace/*
+# AI가 테스트용으로 생성하는 데이터베이스 파일 무시
+*.db
+*.sqlite3
+*.sqlite
+
+# --- IDE & OS Files ---
+.vscode/
+.idea/
+.DS_Store
+*.swp

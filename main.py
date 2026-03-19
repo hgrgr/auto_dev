@@ -1,15 +1,10 @@
-# main.py
-from dotenv import load_dotenv
-load_dotenv()
-
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import HumanMessage
 
+from config import MAX_QA_ATTEMPTS, RECURSION_LIMIT
 from state import AgentState
-from agents import (
-    pm_agent, developer_agent, security_qa_agent, documentation_agent, MAX_QA_ATTEMPTS
-)
+from agents import pm_agent, developer_agent, security_qa_agent, documentation_agent
 
 # --- 라우팅(Edge) 함수 ---
 def route_after_qa(state: AgentState):
@@ -64,14 +59,16 @@ app = workflow.compile(checkpointer=memory, interrupt_before=["human_approval"])
 
 # --- 실행 루프 ---
 if __name__ == "__main__":
-    project_id = "secure_logger_v2"
+    project_id = "secure_logger_v3"
+    
     config = {
         "configurable": {"thread_id": project_id},
-        "recursion_limit": 100
+        "recursion_limit": RECURSION_LIMIT
     }
+    
     initial_input = {
         "project_name": project_id, 
-        "messages": [HumanMessage(content="보안이 강화된 간단한 로깅 웹서버를 만들어줘. 이번엔 문서화까지 부탁해.")]
+        "messages": [HumanMessage(content="보안이 강화된 간단한 로깅 웹서버를 만들어줘.")]
     }
 
     print(f"=== 팩토리 가동 시작 (프로젝트: {project_id}) ===")
