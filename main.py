@@ -7,13 +7,23 @@ from state import AgentState
 from agents import pm_agent, architect_agent, developer_agent, security_qa_agent, documentation_agent
 
 # --- 라우팅(Edge) 함수 ---
+# main.py 내부의 라우팅 부분 수정
 def route_after_qa(state: AgentState):
-    if state.get("test_results", "").startswith("FAIL"):
+    test_results = state.get("test_results", "")
+    
+    if test_results.startswith("FAIL"):
         if state.get("qa_attempts", 0) >= MAX_QA_ATTEMPTS:
             print(f"   -> 🛑 [System]: 최대 QA 재시도 횟수({MAX_QA_ATTEMPTS}회)를 초과했습니다.")
             return "human_approval"
-        print("   -> ♻️ [System]: Dev Agent에게 코드 수정을 지시합니다.")
-        return "developer"
+            
+        # [핵심 로직] 에러 종류에 따라 분기
+        if test_results.startswith("FAIL_ARCH"):
+            print("   -> 🏗️ [System]: 치명적 구조 결함 발견! Architect Agent에게 재설계를 지시합니다.")
+            return "architect"
+        else:
+            print("   -> ♻️ [System]: 단순 버그 발견! Dev Agent에게 코드 수정을 지시합니다.")
+            return "developer"
+            
     print("   -> ✅ [System]: QA 통과. 공식 문서 작성 단계로 이동합니다.")
     return "docs"
 
@@ -44,6 +54,7 @@ workflow.add_edge("pm", "architect")
 workflow.add_edge("architect", "developer")
 workflow.add_edge("developer", "qa")
 workflow.add_conditional_edges("qa", route_after_qa, {
+    "architect": "architect",
     "developer": "developer",
     "docs": "docs",
     "human_approval": "human_approval"
@@ -61,7 +72,7 @@ app = workflow.compile(checkpointer=memory, interrupt_before=["human_approval"])
 
 # --- 실행 루프 ---
 if __name__ == "__main__":
-    project_id = "secure_logger_v4"
+    project_id = "secure_logger_v5"
     
     config = {
         "configurable": {"thread_id": project_id},

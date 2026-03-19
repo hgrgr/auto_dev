@@ -1,8 +1,9 @@
+import os
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from state import AgentState
 from tools import write_code_to_workspace, read_file_from_workspace
-from config import DEFAULT_MODEL, TEMPERATURE
+from config import DEFAULT_MODEL, TEMPERATURE, WORKSPACE_DIR
 
 llm = ChatOpenAI(model=DEFAULT_MODEL, temperature=TEMPERATURE)
 llm_with_tools = llm.bind_tools([write_code_to_workspace, read_file_from_workspace])
@@ -12,23 +13,53 @@ def developer_agent(state: AgentState):
     print(f"\n🤖 [Dev Agent]: '{project_name}' 프로젝트의 코드를 작성 중입니다...")
     
     requirements = state.get("requirements", "요구사항이 없습니다.")
-    architecture = state.get("architecture", "아키텍처 설계가 없습니다.") 
+    architecture = state.get("architecture", "아키텍처 설계가 없습니다.")
+    
+    project_dir = os.path.join(WORKSPACE_DIR, project_name)
+    existing_files = []
+    
+    # [핵심 추가 1] requirements.txt 내용 읽기
+    req_content = "아직 requirements.txt가 생성되지 않았습니다."
+    req_path = os.path.join(project_dir, "requirements.txt")
+    if os.path.exists(req_path):
+        with open(req_path, "r", encoding="utf-8") as f:
+            req_content = f.read()
+
+    # [핵심 추가 2] Dev 에이전트가 코드를 고칠 수 있도록 현재 작성된 전체 .py 코드 내용을 읽어옵니다.
+    existing_code_content = ""
+    if os.path.exists(project_dir):
+        for root, _, files in os.walk(project_dir):
+            if "venv" in root or "__pycache__" in root: 
+                continue
+            for file in files:
+                file_path = os.path.join(root, file)
+                rel_path = os.path.relpath(file_path, project_dir)
+                existing_files.append(rel_path)
+                
+                # 파이썬 파일인 경우 코드를 통째로 변수에 저장
+                if file.endswith(".py"):
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        existing_code_content += f"\n--- {rel_path} ---\n{f.read()}\n"
+                
+    existing_files_str = "\n".join(existing_files) if existing_files else "생성된 파일 없음"
 
     error_feedback = ""
     if state.get("test_results", "").startswith("FAIL"):
-        error_feedback = f"\n이전 코드 검사에서 다음 오류/취약점이 발견되었습니다. 이를 수정하여 다시 작성하세요:\n{state['messages'][-1].content}"
+        error_feedback = f"\n[이전 코드 검사 오류 피드백]\n{state['messages'][-1].content}"
 
+    # 프롬프트에 순환 참조(Circular Import) 해결 지침 강력 추가
     system_prompt = SystemMessage(content=f"""당신은 수석 소프트웨어 엔지니어입니다. 
-주어진 요구사항에 맞는 코드를 작성하고 도구를 사용해 저장하세요. 
+주어진 요구사항과 '아키텍트의 설계도'를 완벽하게 준수하여 실제 구동 가능한 파이썬 코드를 작성하세요. 
 도구를 호출할 때 'project_name' 파라미터 값으로 반드시 '{project_name}'을 입력해야 합니다.
 
-[중요 지침] 
-1. 도구를 여러 번 호출하여 **반드시 메인 파이썬 코드(.py)와 requirements.txt를 모두** 생성하고 저장해야 합니다. 파이썬 코드 없이 requirements.txt만 저장하면 절대 안 됩니다.
-2. 현재 시스템은 **Python 3.13** 환경입니다. requirements.txt 작성 시 반드시 최신 안정화 버전(예: Flask>=3.0, FastAPI 최신 등)을 사용하세요.
-3. 실행 중 'ImportError'나 버전 충돌 에러가 발생하면, requirements.txt와 파이썬 코드를 모두 최신 버전에 맞게 수정하여 도구로 다시 덮어쓰세요.
-4. 추가 수정 요청이 들어온 경우, 'read_file_from_workspace' 도구를 사용해 반드시 'docs/specification.md'를 먼저 읽고 기존 시스템 규칙을 위반하지 않도록 코드를 작성하세요.""")
+[절대 규칙 - 반드시 지키세요] 
+1. 'docs/architecture.md' 등 문서 파일은 절대 작성하거나 덮어쓰지 마세요.
+2. [버그 수정 및 순환 참조(Circular Import) 해결] QA 피드백에 에러가 있다면, '현재 작성된 전체 파이썬 코드'를 분석하여 에러의 원인이 되는 파일들을 찾아내세요. 특히 순환 참조 에러의 경우, 임포트 위치를 함수 내부로 옮기거나 의존성 방향을 한 방향으로 재설계하여 도구를 통해 해당 파일들을 덮어써야 합니다.
+3. [도구 강제 호출] 어떤 오류 피드백을 받든, 말로만 설명하지 말고 반드시 원인이 되는 파일을 수정하여 도구(write_code_to_workspace)를 호출해야 합니다.""")
     
-    user_prompt = HumanMessage(content=f"요구사항:\n{requirements}\n\n아키텍처 설계도:\n{architecture}\n\n{error_feedback}") 
+    # Dev 에이전트에게 전체 파일 리스트, 패키지 버전, 그리고 '전체 코드 내용'을 몽땅 주입합니다.
+    user_prompt = HumanMessage(content=f"요구사항:\n{requirements}\n\n아키텍처 설계도:\n{architecture}\n\n현재 디스크에 저장된 파일 목록:\n{existing_files_str}\n\n현재 requirements.txt 내용:\n{req_content}\n\n현재 작성된 전체 파이썬 코드:\n{existing_code_content}\n{error_feedback}")
+    
     response = llm_with_tools.invoke([system_prompt, user_prompt])
     
     code_files_updated = {}
@@ -38,5 +69,8 @@ def developer_agent(state: AgentState):
                 result = write_code_to_workspace.invoke(tool_call["args"])
                 print(f"   -> 💾 {result}")
                 code_files_updated[tool_call["args"]["filename"]] = tool_call["args"]["code"]
-    
+    else:
+        # LLM이 도구를 호출하지 않고 일반 텍스트만 뱉으며 턴을 넘기는 직무유기 현상 모니터링
+        print("   -> ⚠️ [System Warning]: Dev Agent가 도구를 호출하지 않고 텍스트만 반환했습니다! (수동 개입 필요 혹은 코드 꼬임)")
+        
     return {"code_files": code_files_updated}
