@@ -63,41 +63,54 @@ graph TD
     class PM,Arch,Dev,Docs agent;
     class QA,Super,Human decision;
     class Start,Deploy endnode;
+```
 
 ## 🚀 시작하기 (Getting Started)
 
 이 프로젝트를 로컬 환경에 구축하고 실행하는 방법입니다.
 
 ### 📋 사전 준비 (Prerequisites)
+
 본 팩토리는 에이전트들의 엄격한 품질 관리를 위해 **Python 3.13** 환경을 권장합니다.
+
 - Python 3.13 이상
 - OpenAI API Key (GPT-4o 등 최신 모델 사용 권장)
 
 ### 🛠️ 설치 및 세팅 (Installation)
 
 1. **저장소 클론 (Clone the repository)**
-```bash
-git clone [https://github.com/your-username/auto-software-factory.git](https://github.com/your-username/auto-software-factory.git)
-cd auto-software-factory
 
-2. **가상 환경 생성 및 활성화 (Virtual Environment)
+```bash
+git clone https://github.com/your-username/auto-software-factory.git
+cd auto-software-factory
+```
+
+2. **가상 환경 생성 및 활성화 (Virtual Environment)**
+
 ```bash
 python3 -m venv venv
+
 # Linux/macOS
-source venv/bin/activate  
+source venv/bin/activate
+
 # Windows
 venv\Scripts\activate
+```
 
-3. **필수 패키지 설치(Install Dependecies)
+3. **필수 패키지 설치 (Install Dependencies)**
+
 ```bash
 pip install -r requirements.txt
+```
 
-4. **환경 변수 설정(Configuration)
+4. **환경 변수 설정 (Configuration)**
+
 ```bash
-# .env 파일 생성
 echo "OPENAI_API_KEY=sk-your-api-key-here" > .env
+```
 
-5. **실행 방법(Usage)
+5. **실행 방법 (Usage)**
+
 ```bash
 python3 main.py
-
+```
