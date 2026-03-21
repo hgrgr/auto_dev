@@ -82,7 +82,40 @@ def security_qa_agent(state: AgentState):
             execution_logs += f"\n[INFO] '{rel_target_path}'가 5초 동안 에러 없이 실행되었습니다. (정상 구동 간주)"
     else:
         critical_runtime_errors.append("'backend/main.py' 또는 'backend/app.py' 파일이 존재하지 않아 서버를 실행할 수 없습니다.")
+
+    # =====================================================================
+    # [새로 추가할 부분 👇] 프론트엔드 동적 검증 (npm install & build 테스트)
+    # =====================================================================
+    frontend_dir = os.path.join(project_dir, "frontend")
+    package_json_path = os.path.join(frontend_dir, "package.json")
     
+    if os.path.exists(package_json_path):
+        print("   -> 📦 'frontend/package.json'을 발견하여 npm 의존성을 설치합니다... (시간이 다소 소요될 수 있습니다)")
+        try:
+            # 1. npm install 실행 (의존성 설치)
+            # 윈도우 환경이면 shell=True가 필요할 수 있으나, 리눅스/맥 환경을 상정하여 작성
+            npm_install = subprocess.run(["npm", "install"], cwd=frontend_dir, capture_output=True, text=True, timeout=120)
+            
+            if npm_install.returncode != 0:
+                critical_runtime_errors.append(f"[FAIL_FRONTEND_DEV: npm install 에러]\n{npm_install.stderr}")
+            else:
+                print("   -> 🏃‍♂️ 프론트엔드 빌드(npm run build) 테스트를 통해 문법/임포트 에러를 검증합니다...")
+                # 2. npm run build 실행 (React 코드 트랜스파일링 및 문법/경로 오류 검출)
+                npm_build = subprocess.run(["npm", "run", "build"], cwd=frontend_dir, capture_output=True, text=True, timeout=60)
+                execution_logs += f"\n[FRONTEND BUILD STDOUT]\n{npm_build.stdout}\n[FRONTEND BUILD STDERR]\n{npm_build.stderr}"
+                
+                if npm_build.returncode != 0:
+                    critical_runtime_errors.append(f"[FAIL_FRONTEND_DEV: React 빌드 에러]\n{npm_build.stderr}")
+                else:
+                    execution_logs += "\n[INFO] 프론트엔드 컴포넌트가 성공적으로 빌드되었습니다. (문법 및 임포트 정상)"
+                    
+        except FileNotFoundError:
+            critical_runtime_errors.append("[FAIL_FRONTEND_ARCH: OS 환경 에러] 시스템에 'npm'이 설치되어 있지 않아 프론트엔드 테스트를 진행할 수 없습니다.")
+        except subprocess.TimeoutExpired:
+             critical_runtime_errors.append("[FAIL_FRONTEND_DEV: 빌드 타임아웃] 프론트엔드 설치/빌드 시간이 초과되었습니다.")
+    else:
+        critical_runtime_errors.append("[FAIL_FRONTEND_ARCH: 구조 결함] 'frontend/package.json' 파일이 없어 React 앱을 테스트할 수 없습니다.")
+
 
     # --- [핵심 수정 3] MSA 대응 프롬프트 분기 ---
     if critical_runtime_errors:

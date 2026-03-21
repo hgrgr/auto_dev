@@ -36,11 +36,16 @@ def frontend_architect_agent(state: AgentState):
 1. 프레임워크: React 기반 시스템 (Vite 또는 Create React App 구조)을 상정하여 설계합니다.
 2. 백엔드(Python) 코드는 절대 설계하지 않습니다. 오직 UI와 클라이언트 측 API 호출 구조만 설계합니다.
 3. 설계도는 도구를 사용하여 'docs/frontend_architecture.md' 파일로 저장하세요.""")
+    
+    test_results = state.get("test_results", "")
+    supervisor_directive = state.get("supervisor_directive", "")
 
     user_prompt = HumanMessage(content=f"""
 [API 명세서 (Contract)]: {api_contract}
 [기존 설계도]: {existing_architecture}
 [현재 디스크 파일 목록]: {actual_files_str}
+🚨 [QA 테스트 결과(에러)]: {test_results}
+🚨 [Supervisor 지시사항]: {supervisor_directive}
 
 위 정보를 바탕으로 React 기반의 프론트엔드 디렉토리/컴포넌트 설계도를 작성하세요.
 """)

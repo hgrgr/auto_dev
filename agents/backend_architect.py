@@ -15,6 +15,7 @@ def backend_architect_agent(state: AgentState):
     requirements = state.get("requirements", "요구사항이 없습니다.")
     api_contract = state.get("api_contract", "API 명세서가 없습니다.")
     existing_architecture = state.get("backend_architecture", "")
+    test_results = state.get("test_results", "")  # <--- 이 줄 추가!
     supervisor_directive = state.get("supervisor_directive", "")
     
     # 백엔드 디렉토리 파일 탐색
@@ -45,6 +46,7 @@ PM이 작성한 <API_CONTRACT>를 완벽하게 구현하기 위한 백엔드 시
 [API 명세서 (Contract)]: {api_contract}
 [기존 설계도]: {existing_architecture}
 [현재 실제 디스크 파일 목록]: {actual_files_str}
+🚨 [QA 테스트 결과(에러)]: {test_results}  <--- 이 줄 추가!
 🚨 [SUPERVISOR 지시사항]: {supervisor_directive}
 
 위 정보를 바탕으로 백엔드 설계도를 작성 및 업데이트하세요.

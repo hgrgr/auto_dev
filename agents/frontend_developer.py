@@ -40,10 +40,15 @@ def frontend_developer_agent(state: AgentState):
 2. 컴포넌트는 함수형(Functional Component)과 Hooks를 사용합니다.
 3. 백엔드와의 통신은 Fetch API나 Axios를 사용하고, API 명세서의 엔드포인트를 정확히 호출하세요.""")
 
+    test_results = state.get("test_results", "")
+    supervisor_directive = state.get("supervisor_directive", "")
+
     user_prompt = HumanMessage(content=f"""
 [API 명세서]:\n{api_contract}\n
 [프론트엔드 아키텍처]:\n{architecture}\n
 [현재 작성된 코드]:\n{existing_code_content}\n
+🚨 [QA 테스트 결과(에러)]: {test_results}
+🚨 [Supervisor 지시사항]: {supervisor_directive}
 
 이 요구사항에 맞춰 필요한 React 구성 요소(package.json, src/*, index.html 등)들을 작성하거나 수정하세요.
 """)

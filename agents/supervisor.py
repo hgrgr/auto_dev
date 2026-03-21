@@ -20,7 +20,7 @@ def supervisor_agent(state: AgentState):
                 actual_files.append(rel_path)
     
     actual_files_str = "\n".join(actual_files) if actual_files else "생성된 파일 없음"
-    qa_feedback = state["messages"][-1].content if state.get("messages") else "피드백 없음"
+    qa_feedback = state.get("test_results", "피드백 없음") 
     
     system_prompt = SystemMessage(content=f"""당신은 AI 소프트웨어 팩토리의 수석 문제 해결사(Supervisor)입니다.
 현재 발생한 에러를 분석하여 '누구의 영역'인지 정확히 판단하고 정석적인 소프트웨어 공학 절차에 따라 지시하세요.

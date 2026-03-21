@@ -15,7 +15,9 @@ def backend_developer_agent(state: AgentState):
     requirements = state.get("requirements", "")
     api_contract = state.get("api_contract", "")
     architecture = state.get("backend_architecture", "")
-    
+    test_results = state.get("test_results", "")  # <--- 이 줄 추가!
+    supervisor_directive = state.get("supervisor_directive", "") # <--- 추가 (없다면)
+
     project_dir = os.path.join(WORKSPACE_DIR, project_name, "backend")
     
     # requirements.txt 및 기존 코드 읽기 (기존 로직 유지)
@@ -53,8 +55,8 @@ PM이 정의한 API 명세서(Contract)와 아키텍트의 설계도를 정확�
 [아키텍처]:\n{architecture}\n
 [현재 requirements.txt]:\n{req_content}\n
 [현재 작성된 코드]:\n{existing_code_content}\n
-🚨 [QA/Supervisor 피드백]: {state.get('supervisor_directive', '')}
-
+🚨 [QA 테스트 결과(에러)]: {test_results}  <--- 이 줄 추가!
+🚨 [Supervisor 지시사항]: {supervisor_directive}  <--- 이 줄 추가/수정!
 이 피드백과 API 명세서를 바탕으로 코드를 생성/수정하세요.
 """)
 
