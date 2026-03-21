@@ -18,6 +18,9 @@ WORKSPACE_DIR = os.path.join(BASE_DIR, "workspace")
 
 # config.py 하단에 추가
 
+BACKEND_PORT = 8000
+FRONTEND_PORT = 5173
+
 # --- 에이전트 권한 및 능력 명세서 (Capability Matrix) ---
 AGENT_CAPABILITIES = """
 [에이전트 권한 및 한계 명세서]

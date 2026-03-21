@@ -3,7 +3,7 @@ import re
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from state import AgentState
-from config import DEFAULT_MODEL, TEMPERATURE
+from config import DEFAULT_MODEL, TEMPERATURE, BACKEND_PORT, FRONTEND_PORT
 
 llm = ChatOpenAI(model=DEFAULT_MODEL, temperature=TEMPERATURE)
 
@@ -32,8 +32,8 @@ def pm_agent(state: AgentState):
 2. 첫 번째 부분은 전체 프로젝트 개요와 화면/기능 요구사항을 담은 기획서입니다. 반드시 <PRD> 와 </PRD> 태그로 내용을 감싸주세요.
 3. 두 번째 부분은 프론트/백엔드 통신 규약입니다. 반드시 <API_CONTRACT> 와 </API_CONTRACT> 태그로 감싸주세요.
 4. 🚨 [핵심] API Contract에는 다음 통신 환경 규약이 **반드시** 명시되어야 합니다:
-   - 백엔드 로컬 서버 주소 및 포트 (예: http://localhost:8000)
-   - 프론트엔드 로컬 서버 주소 및 포트 (예: Vite의 경우 http://localhost:5173, CRA의 경우 http://localhost:3000)
+   - 백엔드 로컬 서버 주소 및 포트: 반드시 'http://localhost:{BACKEND_PORT}' 으로 고정
+   - 프론트엔드 로컬 서버 주소 및 포트: 반드시 'http://localhost:{FRONTEND_PORT}' 으로 고정
    - CORS 허용 정책 (백엔드 서버는 반드시 프론트엔드의 접근을 허용해야 함)
    - 각 엔드포인트의 목적, URL, HTTP Method, Request/Response 데이터 형식 예시
 5. (추가/수정의 경우) 기존 기능의 무결성을 유지하며 증분(Incremental) 업데이트를 수행하세요.

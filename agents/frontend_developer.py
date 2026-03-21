@@ -3,7 +3,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from state import AgentState
 from tools import write_code_to_workspace, read_file_from_workspace
-from config import DEFAULT_MODEL, TEMPERATURE, WORKSPACE_DIR
+from config import DEFAULT_MODEL, TEMPERATURE, WORKSPACE_DIR, BACKEND_PORT, FRONTEND_PORT
 
 llm = ChatOpenAI(model=DEFAULT_MODEL, temperature=TEMPERATURE)
 llm_with_tools = llm.bind_tools([write_code_to_workspace, read_file_from_workspace])
@@ -33,14 +33,19 @@ def frontend_developer_agent(state: AgentState):
 [🚨 도구 호출 절대 규칙 - 엄수]
 1. 'project_name' 파라미터는 반드시 "{project_name}" 으로 고정하세요!
 2. 도구 호출 시 'module_type'은 반드시 "frontend"로 지정하세요.
-3. 'filename'에는 순수 경로만 적으세요.
-4. 🚨 [도구 강제 호출]: 어떤 오류 피드백이나 지시를 받든, 말로만 설명하거나 텍스트만 반환하는 것은 '절대 금지'입니다. 무조건 하나 이상의 코드를 수정하여 'write_code_to_workspace' 도구를 호출해야만 당신의 임무가 끝납니다!
+3. 'filename'에는 순수 경로만 적으세요. (예: package.json, src/App.jsx)
+4. 🚨 [도구 강제 호출]: 에러 피드백이나 Supervisor의 지시를 받으면, 절대 말로만 대답하지 마세요! 문제를 해결하기 위해 반드시 하나 이상의 파일에 대해 'write_code_to_workspace' 도구를 호출하여 코드를 덮어쓰고 저장해야만 임무가 끝납니다.
 
 [개발 지침]
-1. 프론트엔드 환경 세팅을 위해 반드시 올바른 `package.json` 파일과 최소한의 보일러플레이트를 구성하세요.
-2. 🚨 [매우 중요: 확장자 규칙]: Vite 등 모던 빌드 환경을 위해, JSX 구문(HTML 태그)이 포함된 모든 React 컴포넌트 파일의 확장자는 반드시 `.js`가 아닌 `.jsx`로 작성하세요. (예: App.jsx, main.jsx) 
+1. 🚨 [매우 중요: Vite 및 빌드 스크립트 강제]: 프론트엔드 환경 세팅을 위해 반드시 Vite 기반의 `package.json`을 구성하세요.
+   `scripts` 섹션에는 무조건 아래 두 가지가 포함되어야 합니다:
+   - `"dev": "vite --port {FRONTEND_PORT}"`
+   - `"build": "vite build"` (react-scripts 사용 절대 금지!)
+   또한 필수 패키지로 `vite`, `@vitejs/plugin-react`, `react`, `react-dom`을 반드시 명시하세요.
+2. 🚨 [매우 중요: 확장자 규칙]: Vite 등 모던 빌드 환경을 위해, JSX 구문(HTML 태그)이 포함된 모든 React 컴포넌트 파일의 확장자는 반드시 `.js`가 아닌 `.jsx`로 작성하세요. (예: App.jsx, main.jsx)
 3. 백엔드와의 통신은 Fetch API나 Axios를 사용하세요.
-4. 백엔드 API를 호출할 때, 반드시 API 명세서(Contract)에 기재된 '백엔드 로컬 서버 주소(예: http://localhost:8000)'를 Base URL로 사용하여 절대 경로로 요청을 보내야 합니다.""")
+4. 백엔드 API를 호출할 때, 반드시 API 명세서(Contract)에 기재된 '백엔드 로컬 서버 주소(http://localhost:{BACKEND_PORT})'를 Base URL로 사용하여 절대 경로로 요청을 보내야 합니다.
+""")
 
     test_results = state.get("test_results", "")
     supervisor_directive = state.get("supervisor_directive", "")

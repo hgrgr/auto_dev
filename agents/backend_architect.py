@@ -39,7 +39,10 @@ PM이 작성한 <API_CONTRACT>를 완벽하게 구현하기 위한 백엔드 시
 [설계 원칙]
 1. 환경 제약: 오직 Python 3.13 생태계만을 사용합니다.
 2. PM의 기획서와 API 명세서를 바탕으로 디렉토리 구조, DB 스키마, 주요 클래스/함수 스펙을 설계합니다.
-3. 설계도는 도구를 사용하여 'docs/backend_architecture.md' 파일로 저장하세요.""")
+3. 설계도는 도구를 사용하여 'docs/backend_architecture.md' 파일로 저장하세요.
+
+🚨 [필수 포함]: 백엔드 디렉토리 구조를 설계할 때, API 서버를 실행하는 진입점인 'main.py' 파일을 무조건 명시하세요.
+""")
 
     user_prompt = HumanMessage(content=f"""
 [전체 요구사항]: {requirements}

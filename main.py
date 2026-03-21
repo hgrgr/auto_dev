@@ -17,7 +17,8 @@ from agents import (
     frontend_developer_agent,
     security_qa_agent, 
     documentation_agent, 
-    supervisor_agent
+    supervisor_agent,
+    e2e_tester_agent
 )
 
 # --- 라우팅(Edge) 함수 ---
@@ -45,8 +46,22 @@ def route_after_qa(state: AgentState):
             print("   -> 🐍 [System]: 백엔드 일반 버그 감지. Backend Developer에게 반환합니다.")
             return "backend_developer"
             
-    print("   -> ✅ [System]: QA 통과. 공식 문서 작성 단계로 이동합니다.")
+    print("   -> ✅ [System]: 정적/빌드 QA 통과. E2E 동적 테스트로 이동합니다.")
+    return "tester" # [변경됨] docs가 아니라 tester로 이동!
+
+def route_after_tester(state: AgentState):
+    test_results = state.get("test_results", "")
+    attempts = state.get("qa_attempts", 0)
+    
+    if test_results.startswith("FAIL"):
+        if attempts >= 3: return "supervisor"
+        if "FAIL_FRONTEND_DEV" in test_results: return "frontend_developer"
+        else: return "backend_developer"
+            
+    print("   -> ✅ [System]: E2E 동적 테스트 통과. 공식 문서 작성 단계로 이동합니다.")
     return "docs"
+
+
 
 def route_after_supervisor(state: AgentState):
     decision = state.get("supervisor_decision", "backend_developer")
@@ -90,7 +105,7 @@ workflow.add_node("frontend_developer", frontend_developer_agent)
 workflow.add_node("qa", security_qa_agent)
 workflow.add_node("docs", documentation_agent)
 workflow.add_node("supervisor", supervisor_agent)
-
+workflow.add_node("tester", e2e_tester_agent)
 # 2. 메인 엣지 (실행 흐름 연결)
 workflow.set_entry_point("pm")
 
@@ -107,6 +122,7 @@ workflow.add_edge("frontend_developer", "qa")
 
 # 3. 조건부 엣지 (루프백 / 피드백 처리)
 workflow.add_conditional_edges("qa", route_after_qa)
+workflow.add_conditional_edges("tester", route_after_tester) # 추가됨
 workflow.add_conditional_edges("supervisor", route_after_supervisor)
 workflow.add_conditional_edges("docs", route_after_human)
 

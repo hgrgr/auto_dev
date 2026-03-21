@@ -7,3 +7,4 @@ from .frontend_developer import frontend_developer_agent
 from .qa import security_qa_agent
 from .docs import documentation_agent
 from .supervisor import supervisor_agent
+from .tester import e2e_tester_agent
