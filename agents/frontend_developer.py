@@ -22,7 +22,7 @@ def frontend_developer_agent(state: AgentState):
         for root, _, files in os.walk(project_dir):
             if "node_modules" in root or "dist" in root or "build" in root: continue
             for file in files:
-                if file.endswith((".js", ".jsx", ".css", ".json", ".html")):
+                if file.endswith((".js", ".jsx", ".css", ".json", ".html")) and file not in ["package-lock.json", "yarn.lock"]:   
                     with open(os.path.join(root, file), "r", encoding="utf-8") as f:
                         rel_path = os.path.relpath(os.path.join(root, file), project_dir)
                         existing_code_content += f"\n--- {rel_path} ---\n{f.read()}\n"
@@ -34,11 +34,13 @@ def frontend_developer_agent(state: AgentState):
 1. 'project_name' 파라미터는 반드시 "{project_name}" 으로 고정하세요!
 2. 도구 호출 시 'module_type'은 반드시 "frontend"로 지정하세요.
 3. 'filename'에는 순수 경로만 적으세요.
+4. 🚨 [도구 강제 호출]: 어떤 오류 피드백이나 지시를 받든, 말로만 설명하거나 텍스트만 반환하는 것은 '절대 금지'입니다. 무조건 하나 이상의 코드를 수정하여 'write_code_to_workspace' 도구를 호출해야만 당신의 임무가 끝납니다!
 
 [개발 지침]
-1. 프론트엔드 환경 세팅을 위해 반드시 올바른 `package.json` 파일과 최소한의 Vite/React 보일러플레이트를 구성하세요.
-2. 컴포넌트는 함수형(Functional Component)과 Hooks를 사용합니다.
-3. 백엔드와의 통신은 Fetch API나 Axios를 사용하고, API 명세서의 엔드포인트를 정확히 호출하세요.""")
+1. 프론트엔드 환경 세팅을 위해 반드시 올바른 `package.json` 파일과 최소한의 보일러플레이트를 구성하세요.
+2. 🚨 [매우 중요: 확장자 규칙]: Vite 등 모던 빌드 환경을 위해, JSX 구문(HTML 태그)이 포함된 모든 React 컴포넌트 파일의 확장자는 반드시 `.js`가 아닌 `.jsx`로 작성하세요. (예: App.jsx, main.jsx) 
+3. 백엔드와의 통신은 Fetch API나 Axios를 사용하세요.
+4. 백엔드 API를 호출할 때, 반드시 API 명세서(Contract)에 기재된 '백엔드 로컬 서버 주소(예: http://localhost:8000)'를 Base URL로 사용하여 절대 경로로 요청을 보내야 합니다.""")
 
     test_results = state.get("test_results", "")
     supervisor_directive = state.get("supervisor_directive", "")

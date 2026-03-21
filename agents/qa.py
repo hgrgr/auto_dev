@@ -22,7 +22,7 @@ def security_qa_agent(state: AgentState):
             if "venv" in root or "__pycache__" in root or "node_modules" in root: 
                 continue
             for file in files:
-                if file.endswith((".py", ".js", ".jsx", ".json")):
+                if file.endswith((".py", ".js", ".jsx", ".json")) and file not in ["package-lock.json", "yarn.lock"]:
                     file_path = os.path.join(root, file)
                     rel_path = os.path.relpath(file_path, project_dir)
                     with open(file_path, "r", encoding="utf-8") as f:

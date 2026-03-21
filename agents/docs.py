@@ -26,7 +26,7 @@ def documentation_agent(state: AgentState):
                 continue
             for file in files:
                 # 문서화에 필요한 프론트/백엔드 주요 확장자 모두 포함
-                if file.endswith((".py", ".js", ".jsx", ".json", ".html")):
+                if file.endswith((".py", ".js", ".jsx", ".json", ".html")) and file not in ["package-lock.json", "yarn.lock"]:
                     file_path = os.path.join(root, file)
                     rel_path = os.path.relpath(file_path, project_dir)
                     with open(file_path, "r", encoding="utf-8") as f:

@@ -31,13 +31,14 @@ def pm_agent(state: AgentState):
 1. 응답은 반드시 두 부분으로 나누어 작성해야 합니다.
 2. 첫 번째 부분은 전체 프로젝트 개요와 화면/기능 요구사항을 담은 기획서입니다. 반드시 <PRD> 와 </PRD> 태그로 내용을 감싸주세요.
 3. 두 번째 부분은 프론트/백엔드 통신 규약입니다. 반드시 <API_CONTRACT> 와 </API_CONTRACT> 태그로 감싸주세요.
-4. [핵심] API Contract에는 다음이 명시되어야 합니다:
-   - 각 엔드포인트의 목적, URL, HTTP Method
-   - Request 데이터 형식 (Query Parameter, Body JSON 예시)
-   - Response 데이터 형식 (성공 및 실패 시 JSON 구조 예시)
+4. 🚨 [핵심] API Contract에는 다음 통신 환경 규약이 **반드시** 명시되어야 합니다:
+   - 백엔드 로컬 서버 주소 및 포트 (예: http://localhost:8000)
+   - 프론트엔드 로컬 서버 주소 및 포트 (예: Vite의 경우 http://localhost:5173, CRA의 경우 http://localhost:3000)
+   - CORS 허용 정책 (백엔드 서버는 반드시 프론트엔드의 접근을 허용해야 함)
+   - 각 엔드포인트의 목적, URL, HTTP Method, Request/Response 데이터 형식 예시
 5. (추가/수정의 경우) 기존 기능의 무결성을 유지하며 증분(Incremental) 업데이트를 수행하세요.
 """)
-    
+
     user_prompt = HumanMessage(content=context_prompt)
     
     response = llm.invoke([system_prompt, user_prompt])
