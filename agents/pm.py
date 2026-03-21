@@ -56,5 +56,6 @@ def pm_agent(state: AgentState):
     
     return {
         "requirements": prd_text,
-        "api_contract": api_text
+        "api_contract": api_text, 
+        "human_decision": "processed"
     }

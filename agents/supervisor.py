@@ -73,4 +73,4 @@ DIRECTIVE: [구체적인 지시 내용]""")
     print(f"   -> 🎯 타겟: {target}")
     print(f"   -> 📝 지시: {directive}")
     
-    return {"supervisor_decision": target, "supervisor_directive": directive}
+    return {"supervisor_decision": target, "supervisor_directive": directive, "human_decision": "processed"}

@@ -1,6 +1,8 @@
 import os
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import MemorySaver
+#from langgraph.checkpoint.memory import MemorySaver
+import sqlite3
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_core.messages import HumanMessage
 
 from config import RECURSION_LIMIT, WORKSPACE_DIR, MAX_QA_ATTEMPTS
@@ -109,9 +111,11 @@ workflow.add_conditional_edges("supervisor", route_after_supervisor)
 workflow.add_conditional_edges("docs", route_after_human)
 
 # 체크포인터 설정
-memory = MemorySaver()
+#memory = MemorySaver()
+#app = workflow.compile(checkpointer=memory)
+conn = sqlite3.connect("checkpoints.sqlite", check_same_thread=False)
+memory = SqliteSaver(conn)
 app = workflow.compile(checkpointer=memory)
-
 
 # --- 메인 실행 로직 ---
 if __name__ == "__main__":
