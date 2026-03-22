@@ -82,31 +82,43 @@ def e2e_tester_agent(state: AgentState):
     execution_logs = ""
     critical_errors = []
 
+    # [수정됨] 서버 로그를 디스크에 기록하기 위해 파일 객체 오픈
+    backend_log_path = os.path.join(project_dir, "backend_run.log")
+    frontend_log_path = os.path.join(project_dir, "frontend_run.log")
+    b_log_file = open(backend_log_path, "w", encoding="utf-8")
+    f_log_file = open(frontend_log_path, "w", encoding="utf-8")
+
+    run_env = os.environ.copy()
+    run_env["PYTHONUNBUFFERED"] = "1"
+
     try:
         print(f"   -> 🚀 백엔드({BACKEND_PORT})와 프론트엔드({FRONTEND_PORT}) 서버를 부팅합니다...")
         
+        # [수정됨] stdout과 stderr를 물리적 로그 파일로 리다이렉션
         backend_proc = subprocess.Popen(
             [venv_python, "main.py"], 
             cwd=backend_dir, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.PIPE, 
+            stdout=b_log_file, 
+            stderr=subprocess.STDOUT, 
+            env=run_env,  # <--- [추가됨] 환경변수 주입
             preexec_fn=os.setsid if os.name != 'nt' else None
         )
         
         frontend_proc = subprocess.Popen(
             ["npm", "run", "dev"], 
             cwd=frontend_dir, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.PIPE, 
+            stdout=f_log_file, 
+            stderr=subprocess.STDOUT, 
             preexec_fn=os.setsid if os.name != 'nt' else None
         )
-        
+
         time.sleep(6) # 서버 구동 대기
         
         # ---------------------------------------------------------
         # 3. 생성된 동적 테스트 실행
         # ---------------------------------------------------------
         print("   -> 🏃‍♂️ 동적 생성된 브라우저 시나리오 테스트를 실행합니다...")
+        
         tester_proc = subprocess.run(
             [venv_python, test_script_path], 
             capture_output=True, 
@@ -118,8 +130,10 @@ def e2e_tester_agent(state: AgentState):
         
         if tester_proc.returncode != 0 or "Error" in tester_proc.stdout or "Exception" in tester_proc.stderr:
             critical_errors.append(tester_proc.stdout + "\n" + tester_proc.stderr)
-            print("   -> 🚨 [Tester 발견 문제]: 일부 시나리오 테스트 실패 또는 통신 에러 감지!")
+            print("   -> 🚨 [Tester 발견 문제]: 시나리오 테스트 실패 또는 서버 통신 에러 감지!")
 
+    except subprocess.TimeoutExpired:
+        critical_errors.append(f"테스트 인프라 타임아웃 에러: Playwright 스크립트 실행이 60초를 초과했습니다. 서버가 제대로 켜지지 않았을 확률이 높습니다.")
     except Exception as e:
         critical_errors.append(f"테스트 인프라 에러: {str(e)}")
     finally:
@@ -134,30 +148,51 @@ def e2e_tester_agent(state: AgentState):
                 os.killpg(os.getpgid(frontend_proc.pid), signal.SIGTERM)
             else:
                 frontend_proc.terminate()
+                
+        # 로그 파일 닫기
+        b_log_file.close()
+        f_log_file.close()
+ 
 
     # ---------------------------------------------------------
     # 4. 테스트 결과 분석 및 Docs(test_report.md) 생성
     # ---------------------------------------------------------
-    log_summary = "\n".join(critical_errors)[:3000] if critical_errors else execution_logs[:3000]
+    # [핵심 추가] 저장된 백엔드/프론트엔드 서버 로그를 읽어와서 에이전트에게 전달
+    server_logs_context = ""
+    try:
+        with open(backend_log_path, "r", encoding="utf-8") as bf:
+            server_logs_context += f"\n\n[BACKEND SERVER LOGS]\n{bf.read()[-2000:]}"
+        with open(frontend_log_path, "r", encoding="utf-8") as ff:
+            server_logs_context += f"\n\n[FRONTEND SERVER LOGS]\n{ff.read()[-2000:]}"
+    except Exception:
+        pass
+
+    log_summary = ("\n".join(critical_errors)[:3000] if critical_errors else execution_logs[:3000]) + server_logs_context
     
     eval_sys_prompt = SystemMessage(content="""당신은 날카로운 E2E 테스터(QA)입니다.
-API 명세서와 테스트 실행 로그를 분석하세요.
-1. 결함이 없으면 'PASS' 라고만 답변하세요.
-2. 프론트/백엔드 오류가 명확하다면 'FAIL_BACKEND_DEV: [이유]' 또는 'FAIL_FRONTEND_DEV: [이유]' 로 시작하는 피드백을 주세요.
-3. 만약 화면(UI) 요소가 없어서 진행하지 못한 에러(Locator 에러)라면, 프론트엔드 개발자에게 해당 UI를 추가하라고 지시하세요.""")
-    
+API 명세서와 테스트 실행 로그, 그리고 백엔드/프론트엔드 서버 구동 로그를 종합적으로 분석하세요.
+
+[분석 가이드라인]
+1. 🚨 [가장 중요]: 실행 로그(Execution Logs)에 에러나 실패가 없다면 무조건 'PASS' 라고만 답변하세요. (서버 로그가 비어있는 것은 서버가 에러 없이 조용히 잘 돌아갔다는 뜻입니다. 절대 로그가 없다고 꼬투리 잡거나 FAIL 처리하지 마세요!)
+2. 타임아웃이나 실제 에러가 발생했을 때만 [BACKEND/FRONTEND SERVER LOGS]를 확인하여 원인을 파악하세요.
+3. 서버 에러가 원인이라면 'FAIL_BACKEND_DEV: [원인]' 또는 'FAIL_FRONTEND_DEV: [원인]'으로 피드백을 주세요.
+4. 만약 화면(UI) 요소가 없어서 진행하지 못한 에러라면, 프론트엔드 개발자에게 해당 UI를 추가하라고 지시하세요.""")
+
     eval_usr_prompt = HumanMessage(
-        content=f"[API Contract]\n{api_contract}\n\n[Test Logs]\n{log_summary}"
+        content=f"[API Contract]\n{api_contract}\n\n[Test & Server Logs]\n{log_summary}"
     )
     
     eval_response = llm.invoke([eval_sys_prompt, eval_usr_prompt])
     result_text = eval_response.content.strip()
+
+    # 파이썬 레벨의 강제 에러 할당 (LLM이 FAIL을 안 뱉을 경우 방어)
+    if critical_errors and "FAIL" not in result_text:
+        result_text = f"FAIL_FRONTEND_DEV: [시스템 강제 에러 할당] 테스트 중 오류가 발생했습니다. 로그를 확인하세요.\n{result_text}"
     
     # --- Test Report Markdown 작성 ---
     report_path = os.path.join(project_dir, "docs", "test_report.md")
     status = "❌ FAILED" if "FAIL" in result_text else "✅ PASSED"
     
-    # [핵심 수정] 파이썬 문자열 내부에 마크다운 백틱 3개가 들어가면 박스가 깨지므로 변수로 치환
     md_code_block = "```"
     
     report_content = f"""# E2E Test Report
@@ -169,7 +204,7 @@ API 명세서와 테스트 실행 로그를 분석하세요.
 {result_text}
 {md_code_block}
 
-## 📝 Execution Logs
+## 📝 Execution & Server Logs
 {md_code_block}text
 {log_summary}
 {md_code_block}
