@@ -25,43 +25,10 @@ def e2e_tester_agent(state: AgentState):
     
     requirements = state.get("requirements", "")
     api_contract = state.get("api_contract", "")
-    
-    # ---------------------------------------------------------
-    # 1. 문서 기반 '동적 Playwright 스크립트' 생성 (LLM 호출)
-    # ---------------------------------------------------------
-    print("   -> 🧠 API 명세서와 기획서를 분석하여 맞춤형 테스트 코드를 작성 중...")
-    
-    # 마크다운 렌더링 오류를 막기 위해 백틱을 변수로 분리 (프롬프트용)
     md_ticks = "```"
     
-    gen_system_prompt = SystemMessage(content=f"""당신은 천재적인 QA 자동화 엔지니어입니다.
-주어진 PRD와 API 명세서를 읽고, 실제 브라우저(Playwright)를 조작하여 
-주요 기능을 검증하는 파이썬 테스트 스크립트를 작성하세요.
-
-[스크립트 작성 규칙]
-1. 프론트엔드 주소는 `http://localhost:{FRONTEND_PORT}` 입니다.
-2. 🚨 [매우 중요]: `playwright.sync_api`를 사용하되, GUI가 없는 서버 환경이므로 반드시 브라우저를 헤드리스 모드로 실행하세요! (예: `browser = p.chromium.launch(headless=True)`)
-3. 소스 코드를 볼 수 없는 상태이므로, 화면의 텍스트나 placeholder를 기반으로 요소를 찾으세요.
-   (예: `page.get_by_placeholder('Email').fill(...)`, `page.get_by_role('button', name='Login').click()`)
-4. 각 기능(회원가입, 로그인 등)을 테스트할 때 `try-except`로 감싸서, 
-   특정 버튼이 없더라도 스크립트가 멈추지 않고 다음 테스트로 넘어가도록 견고하게 작성하세요.
-5. 브라우저 콘솔 에러(`page.on("console")`)와 네트워크 에러를 반드시 수집하여 마지막에 print 하세요.
-6. 응답은 반드시 {md_ticks}python ... {md_ticks} 블록 안에 실행 가능한 파이썬 코드만 작성하세요.""")
-
-    gen_user_prompt = HumanMessage(
-        content=f"[PRD]\n{requirements}\n\n[API Contract]\n{api_contract}"
-    )
-    
-    script_response = llm.invoke([gen_system_prompt, gen_user_prompt])
-    test_code = extract_python_code(script_response.content)
-    
-    # 생성된 스크립트 저장
-    test_script_path = os.path.join(project_dir, "dynamic_e2e_runner.py")
-    with open(test_script_path, "w", encoding="utf-8") as f:
-        f.write(test_code)
-
     # ---------------------------------------------------------
-    # 2. 샌드박스 서버 구동 및 테스트 환경 세팅
+    # 1. 테스트 환경 세팅 및 서버 구동
     # ---------------------------------------------------------
     backend_dir = os.path.join(project_dir, "backend")
     frontend_dir = os.path.join(project_dir, "frontend")
@@ -82,82 +49,101 @@ def e2e_tester_agent(state: AgentState):
     execution_logs = ""
     critical_errors = []
 
-    # [수정됨] 서버 로그를 디스크에 기록하기 위해 파일 객체 오픈
     backend_log_path = os.path.join(project_dir, "backend_run.log")
     frontend_log_path = os.path.join(project_dir, "frontend_run.log")
     b_log_file = open(backend_log_path, "w", encoding="utf-8")
     f_log_file = open(frontend_log_path, "w", encoding="utf-8")
 
+    # 파이썬 로그 즉시 출력 강제 (버퍼링 무시)
     run_env = os.environ.copy()
     run_env["PYTHONUNBUFFERED"] = "1"
 
     try:
         print(f"   -> 🚀 백엔드({BACKEND_PORT})와 프론트엔드({FRONTEND_PORT}) 서버를 부팅합니다...")
-        
-        # [수정됨] stdout과 stderr를 물리적 로그 파일로 리다이렉션
         backend_proc = subprocess.Popen(
             [venv_python, "main.py"], 
-            cwd=backend_dir, 
-            stdout=b_log_file, 
-            stderr=subprocess.STDOUT, 
-            env=run_env,  # <--- [추가됨] 환경변수 주입
-            preexec_fn=os.setsid if os.name != 'nt' else None
+            cwd=backend_dir, stdout=b_log_file, stderr=subprocess.STDOUT, 
+            env=run_env, preexec_fn=os.setsid if os.name != 'nt' else None
         )
         
         frontend_proc = subprocess.Popen(
             ["npm", "run", "dev"], 
-            cwd=frontend_dir, 
-            stdout=f_log_file, 
-            stderr=subprocess.STDOUT, 
+            cwd=frontend_dir, stdout=f_log_file, stderr=subprocess.STDOUT, 
             preexec_fn=os.setsid if os.name != 'nt' else None
         )
-
         time.sleep(6) # 서버 구동 대기
         
         # ---------------------------------------------------------
-        # 3. 생성된 동적 테스트 실행
+        # 2. [핵심] 동적 스크립트 작성 및 자가 치유(Reflexion) 루프
         # ---------------------------------------------------------
-        print("   -> 🏃‍♂️ 동적 생성된 브라우저 시나리오 테스트를 실행합니다...")
+        max_retries = 3
+        script_feedback = ""
+        test_script_path = os.path.join(project_dir, "dynamic_e2e_runner.py")
         
-        tester_proc = subprocess.run(
-            [venv_python, test_script_path], 
-            capture_output=True, 
-            text=True, 
-            timeout=60
-        )
-        
-        execution_logs += f"\n[E2E TEST STDOUT]\n{tester_proc.stdout}\n[E2E TEST STDERR]\n{tester_proc.stderr}"
-        
-        if tester_proc.returncode != 0 or "Error" in tester_proc.stdout or "Exception" in tester_proc.stderr:
-            critical_errors.append(tester_proc.stdout + "\n" + tester_proc.stderr)
-            print("   -> 🚨 [Tester 발견 문제]: 시나리오 테스트 실패 또는 서버 통신 에러 감지!")
+        for attempt in range(max_retries):
+            print(f"   -> 🧠 (시도 {attempt+1}/{max_retries}) 맞춤형 E2E 테스트 코드를 설계/수정 중...")
+            
+            gen_system_prompt = SystemMessage(content=f"""당신은 천재적인 QA 자동화 엔지니어입니다.
+주어진 PRD와 API 명세서를 읽고, 실제 브라우저(Playwright sync)를 조작하여 기능을 검증하는 파이썬 스크립트를 작성하세요.
+
+[스크립트 작성 규칙]
+1. 프론트엔드 주소는 `http://localhost:{FRONTEND_PORT}` 입니다.
+2. 🚨 반드시 `browser = p.chromium.launch(headless=True)` 로 실행하세요.
+3. 각 기능(회원가입, 로그인 등)을 테스트할 때, 요소를 찾는 대기 시간은 짧게 설정하세요. 
+   - ❌ [절대 금지]: `page.get_by_text('Login', timeout=3000)` (get_by_text는 timeout 인자가 없습니다!)
+   - ✅ [권장 방법]: `page.get_by_role('button', name='Login').click(timeout=3000)`
+4. 🚨 [매우 중요: 견고한 예외 처리 및 구체적 에러 로깅]: 테스트 중 요소가 없어서 TimeoutError가 나더라도 스크립트가 뻗어버리면 안 됩니다! 
+   반드시 try-except로 감싸고, 예외가 발생하면 **정확히 어떤 요소를 찾으려 했는지 구체적인 텍스트나 역할을 명시하여** `print("[Frontend Error] '장바구니에 담기' 텍스트를 가진 버튼(button) 요소를 찾을 수 없습니다.")` 형태로 출력하세요. "홈 화면 요소 추가 요망" 같은 두루뭉술한 로그는 절대 금지합니다. 에러 출력 후 테스트를 계속 진행하거나 정상 종료(`sys.exit(0)`) 하도록 만드세요.
+5. 오직 {md_ticks}python ... {md_ticks} 블록 안에 파이썬 코드만 작성하세요.""")
+
+            gen_user_prompt = HumanMessage(
+                content=f"[PRD]\n{requirements}\n[API Contract]\n{api_contract}\n{script_feedback}"
+            )
+            
+            script_response = llm.invoke([gen_system_prompt, gen_user_prompt])
+            test_code = extract_python_code(script_response.content)
+            
+            with open(test_script_path, "w", encoding="utf-8") as f:
+                f.write(test_code)
+                
+            print(f"   -> 🏃‍♂️ 테스트 스크립트를 실행하고 자가 검증합니다...")
+            tester_proc = subprocess.run([venv_python, test_script_path], capture_output=True, text=True, timeout=120)
+            
+            # 자가 검증 판독: 스크립트가 파이썬 문법 에러 없이 예쁘게 끝났는가? (returncode == 0)
+            if tester_proc.returncode == 0 and "Traceback" not in tester_proc.stderr:
+                execution_logs += f"\n[E2E TEST STDOUT]\n{tester_proc.stdout}\n[E2E TEST STDERR]\n{tester_proc.stderr}"
+                break # 완벽하게 통과하거나, 에러를 try-except로 잘 잡아서 정상 종료한 경우 루프 탈출!
+            else:
+                print("   -> ⚠️ [Tester 자가 반성]: 작성한 파이썬 스크립트에서 예상치 못한 에러가 났습니다. 코드를 고칩니다!")
+                script_feedback = f"""
+🚨 [이전 시도 스크립트 실행 에러 발생]
+아래 파이썬 에러 로그를 분석하여 당신의 코드를 스스로 수정하세요.
+1. Playwright 문법 오류(TypeError 등)인 경우: 코드를 올바른 문법으로 고치세요.
+2. UI 요소를 찾지 못한 경우(TimeoutError): 해당 코드를 try-except로 감싸고, 에러 사유를 print한 뒤 스크립트를 정상 종료되게 만드세요. 절대 Traceback으로 비정상 종료되게 두지 마세요!
+
+[에러 로그]
+{tester_proc.stderr}
+"""
+                if attempt == max_retries - 1:
+                    critical_errors.append(f"테스터 스크립트 실패 로그:\n{tester_proc.stderr}")
+                    print("   -> 🚨 [Tester 포기]: 3번의 시도에도 스크립트 에러를 완전히 잡지 못했습니다.")
 
     except subprocess.TimeoutExpired:
-        critical_errors.append(f"테스트 인프라 타임아웃 에러: Playwright 스크립트 실행이 60초를 초과했습니다. 서버가 제대로 켜지지 않았을 확률이 높습니다.")
+        critical_errors.append(f"테스트 인프라 타임아웃 에러: Playwright 스크립트 실행이 120초를 초과했습니다.")
     except Exception as e:
         critical_errors.append(f"테스트 인프라 에러: {str(e)}")
     finally:
         print("   -> 🧹 테스트 완료. 서버를 안전하게 종료합니다.")
         if backend_proc: 
-            if os.name != 'nt':
-                os.killpg(os.getpgid(backend_proc.pid), signal.SIGTERM)
-            else:
-                backend_proc.terminate()
+            os.killpg(os.getpgid(backend_proc.pid), signal.SIGTERM) if os.name != 'nt' else backend_proc.terminate()
         if frontend_proc: 
-            if os.name != 'nt':
-                os.killpg(os.getpgid(frontend_proc.pid), signal.SIGTERM)
-            else:
-                frontend_proc.terminate()
-                
-        # 로그 파일 닫기
+            os.killpg(os.getpgid(frontend_proc.pid), signal.SIGTERM) if os.name != 'nt' else frontend_proc.terminate()
         b_log_file.close()
         f_log_file.close()
- 
 
     # ---------------------------------------------------------
-    # 4. 테스트 결과 분석 및 Docs(test_report.md) 생성
+    # 3. 테스트 결과 종합 분석 및 Docs(test_report.md) 생성
     # ---------------------------------------------------------
-    # [핵심 추가] 저장된 백엔드/프론트엔드 서버 로그를 읽어와서 에이전트에게 전달
     server_logs_context = ""
     try:
         with open(backend_log_path, "r", encoding="utf-8") as bf:
@@ -170,44 +156,38 @@ def e2e_tester_agent(state: AgentState):
     log_summary = ("\n".join(critical_errors)[:3000] if critical_errors else execution_logs[:3000]) + server_logs_context
     
     eval_sys_prompt = SystemMessage(content="""당신은 날카로운 E2E 테스터(QA)입니다.
-API 명세서와 테스트 실행 로그, 그리고 백엔드/프론트엔드 서버 구동 로그를 종합적으로 분석하세요.
+API 명세서와 테스트 실행 로그, 그리고 서버 구동 로그를 종합적으로 분석하세요.
 
 [분석 가이드라인]
-1. 🚨 [가장 중요]: 실행 로그(Execution Logs)에 에러나 실패가 없다면 무조건 'PASS' 라고만 답변하세요. (서버 로그가 비어있는 것은 서버가 에러 없이 조용히 잘 돌아갔다는 뜻입니다. 절대 로그가 없다고 꼬투리 잡거나 FAIL 처리하지 마세요!)
-2. 타임아웃이나 실제 에러가 발생했을 때만 [BACKEND/FRONTEND SERVER LOGS]를 확인하여 원인을 파악하세요.
-3. 서버 에러가 원인이라면 'FAIL_BACKEND_DEV: [원인]' 또는 'FAIL_FRONTEND_DEV: [원인]'으로 피드백을 주세요.
-4. 만약 화면(UI) 요소가 없어서 진행하지 못한 에러라면, 프론트엔드 개발자에게 해당 UI를 추가하라고 지시하세요.""")
-
-    eval_usr_prompt = HumanMessage(
-        content=f"[API Contract]\n{api_contract}\n\n[Test & Server Logs]\n{log_summary}"
-    )
+1. 🚨 [가장 중요]: 실행 로그에 에러나 실패가 없다면(서버 로그가 비어있어도) 무조건 'PASS' 라고만 답변하세요.
+2. 스크립트가 실행 로그에 '[Frontend Error] OOO 요소를 찾을 수 없습니다' 같은 것을 출력했다면, 이는 프론트엔드의 잘못입니다. 'FAIL_FRONTEND_DEV: [해당 요소 추가 요망]' 으로 피드백을 주세요.
+3. 타임아웃이나 파이썬 500 에러가 났다면 서버 로그를 분석하여 'FAIL_BACKEND_DEV: [원인]' 또는 'FAIL_FRONTEND_DEV: [원인]'으로 지시하세요.""")
+    
+    eval_usr_prompt = HumanMessage(content=f"[API Contract]\n{api_contract}\n\n[Test & Server Logs]\n{log_summary}")
     
     eval_response = llm.invoke([eval_sys_prompt, eval_usr_prompt])
     result_text = eval_response.content.strip()
 
-    # 파이썬 레벨의 강제 에러 할당 (LLM이 FAIL을 안 뱉을 경우 방어)
     if critical_errors and "FAIL" not in result_text:
-        result_text = f"FAIL_FRONTEND_DEV: [시스템 강제 에러 할당] 테스트 중 오류가 발생했습니다. 로그를 확인하세요.\n{result_text}"
+        result_text = f"FAIL_FRONTEND_DEV: [시스템 강제 에러 할당] 테스트 중 오류가 발생했습니다.\n{result_text}"
     
     # --- Test Report Markdown 작성 ---
     report_path = os.path.join(project_dir, "docs", "test_report.md")
     status = "❌ FAILED" if "FAIL" in result_text else "✅ PASSED"
-    
-    md_code_block = "```"
     
     report_content = f"""# E2E Test Report
 - **Date:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 - **Status:** {status}
 
 ## 🤖 Tester Feedback
-{md_code_block}text
+{md_ticks}text
 {result_text}
-{md_code_block}
+{md_ticks}
 
 ## 📝 Execution & Server Logs
-{md_code_block}text
+{md_ticks}text
 {log_summary}
-{md_code_block}
+{md_ticks}
 """
     os.makedirs(os.path.dirname(report_path), exist_ok=True)
     with open(report_path, "w", encoding="utf-8") as f:
