@@ -33,23 +33,24 @@ def frontend_developer_agent(state: AgentState):
 [🚨 도구 호출 절대 규칙 - 엄수]
 1. 'project_name' 파라미터는 반드시 "{project_name}" 으로 고정하세요!
 2. 도구 호출 시 'module_type'은 반드시 "frontend"로 지정하세요.
-3. 'filename'에는 순수 경로만 적으세요. (예: package.json, src/App.jsx, src/pages/HomePage.jsx)
+3. 'filename'에는 순수 경로만 적으세요. (예: package.json, index.html, src/App.jsx, src/pages/HomePage.jsx)
 4. 🚨 [다중 도구 호출(Multi-Tool Call) 강제]: 당신은 한 번의 응답에서 'write_code_to_workspace' 도구를 **반드시 3~4번 이상 동시에 호출**하여 필요한 모든 파일을 한 번에 생성해야 합니다!
    - 예시: 한 번에 `package.json`, `src/App.jsx`, `src/pages/HomePage.jsx`, `src/components/ProductList.jsx` 를 모두 각각의 도구 호출로 생성하세요.
    - 누락된 페이지나 컴포넌트가 하나라도 있으면 빌드 에러가 발생합니다. 설계도에 있는 모든 JSX 파일을 한 번의 턴에 모두 만드세요!
 5. 🚨 [도구 강제 호출]: 에러 피드백이나 Supervisor의 지시를 받으면, 절대 말로만 대답하지 마세요! 문제를 해결하기 위해 반드시 하나 이상의 파일에 대해 'write_code_to_workspace' 도구를 호출하여 코드를 덮어쓰고 저장해야만 임무가 끝납니다.
 
 [개발 지침]
-1. 🚨 [매우 중요: Vite 및 빌드 스크립트 강제]: 프론트엔드 환경 세팅을 위해 반드시 Vite 기반의 `package.json`을 구성하세요. 
+1. 🚨 [매우 중요: Vite 및 파일 구조 강제]: 프론트엔드 환경 세팅을 위해 반드시 Vite 기반의 `package.json`을 구성하세요.
    `scripts` 섹션에는 무조건 아래 두 가지가 포함되어야 합니다:
    - `"dev": "vite --port {FRONTEND_PORT}"`
    - `"build": "vite build"`
    또한 필수 패키지로 `vite`, `@vitejs/plugin-react`, `react`, `react-dom`을 반드시 명시하세요.
-2. 🚨 [매우 중요: 확장자 규칙]: Vite 등 모던 빌드 환경을 위해, JSX 구문(HTML 태그)이 포함된 모든 React 컴포넌트 파일의 확장자는 반드시 `.js`가 아닌 `.jsx`로 작성하세요. (예: App.jsx, main.jsx) 
+   🚨 [가장 중요]: Vite의 진입점 파일인 **`index.html`은 절대 `public/` 폴더에 넣지 마세요! 무조건 `frontend` 최상단 경로(filename="index.html")에 생성해야 합니다!**
+2. 🚨 [매우 중요: 확장자 규칙]: Vite 등 모던 빌드 환경을 위해, JSX 구문(HTML 태그)이 포함된 모든 React 컴포넌트 파일의 확장자는 반드시 `.js`가 아닌 `.jsx`로 작성하세요. (예: App.jsx, main.jsx)
 3. 백엔드와의 통신은 Fetch API나 Axios를 사용하세요.
 4. 백엔드 API를 호출할 때, 반드시 API 명세서(Contract)에 기재된 '백엔드 로컬 서버 주소(http://localhost:{BACKEND_PORT})'를 Base URL로 사용하여 절대 경로로 요청을 보내야 합니다.
+5. 🚨 [매우 중요: 컴포넌트 화면 렌더링 강제]: 새로운 UI 컴포넌트(예: 버튼, 모달, 페이지 등) 파일을 만들었다면, **반드시 해당 컴포넌트가 실제 화면에 보이도록 `src/App.jsx`나 관련 페이지(부모) 컴포넌트를 함께 수정하여 `import` 하고 JSX 트리 내에 렌더링(`<MyComponent />`)되도록 만드세요.** 파일만 덩그러니 생성하고 부모 컴포넌트에 연결하지 않으면 테스터가 화면에서 찾을 수 없어 에러가 발생합니다!
 """)
-
 
     test_results = state.get("test_results", "")
     supervisor_directive = state.get("supervisor_directive", "")

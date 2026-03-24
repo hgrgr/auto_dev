@@ -46,20 +46,25 @@ def supervisor_agent(state: AgentState):
     # ---------------------------------------------------------
     # Step 2. 검색 결과를 포함하여 팩트 기반의 지시사항 작성
     # ---------------------------------------------------------
+    
+
     system_prompt = SystemMessage(content=f"""당신은 문제를 해결하는 시니어 개발 팀장(Supervisor)입니다.
 현재 QA 테스트 또는 빌드 단계에서 교착 상태(반복되는 에러)가 발생했습니다.
 {search_context}
 
 아래 에러 내용을 분석하여 누구에게 책임을 묻고 어떤 지시를 내려야 할지 결정하세요.
-🚨 [절대 규칙]
-1. 프론트엔드 환경은 Vite 기반입니다. (index.html은 루트에 있어야 하며, CRA 방식의 훈수를 두지 마세요.)
-2. Playwright 문법 등 프레임워크 에러라면 뇌피셜로 답하지 말고 반드시 검색 결과를 우선적으로 따르세요!
-3. 지시사항은 상대방이 도구(write_code_to_workspace)를 어떻게 사용해서 고쳐야 할지 아주 구체적이고 단호하게 작성하세요.
+🚨 [절대 규칙 - 엄수]
+1. 프론트엔드 환경은 Vite 기반의 **React**입니다. 
+   - ❌ [절대 금지]: UI 요소(버튼, 텍스트박스 등)를 `index.html`에 추가하라고 지시하지 마세요!
+   - ✅ [올바른 지시]: UI 추가 및 수정은 반드시 `src/` 폴더 내의 `.jsx` 컴포넌트 파일에서 수행하라고 지시하세요.
+2. 화면에 UI가 안 보인다는 에러가 나면, 단순히 컴포넌트 파일만 만들라고 하지 말고 **"만든 컴포넌트를 반드시 `src/App.jsx` 또는 라우팅 파일에 import하여 화면에 렌더링되게 하라"**고 구체적으로 지시하세요.
+3. Playwright 문법 등 프레임워크 에러라면 뇌피셜로 답하지 말고 반드시 검색 결과를 우선적으로 따르세요.
+4. 지시사항은 상대방이 도구를 어떻게 사용해서 고쳐야 할지 아주 구체적이고 단호하게 작성하세요.
 
 반드시 아래 형식에 맞춰 답변하세요:
 TARGET: [backend_architect, backend_developer, frontend_architect, frontend_developer 중 택 1]
 INSTRUCTION: [구체적인 지시 내용]""")
-
+    
     user_prompt = HumanMessage(content=f"[현재 에러 상황]\n{test_results}")
     
     response = llm.invoke([system_prompt, user_prompt])
